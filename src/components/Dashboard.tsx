@@ -35,13 +35,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // Mock data
   const userStats = {
-    nivel: 15,
-    puntos: 2340,
+    nivel: 0,
+    puntos: 0,
     puntosParaSiguienteNivel: 2500,
-    streak: 7,
-    tareasCompletadas: 23,
-    tareasTotal: 28,
-    progresoDiario: 75
+    streak: 0,
+    tareasCompletadas: 0,
+    tareasTotal: 0,
+    progresoDiario: 0
   };
 
  // ✅ importa arriba del archivo
@@ -71,10 +71,10 @@ const proximasTareas = tasks.slice(0, 5);
   ];
 
   const materias = [
-    { nombre: "Ing. Software", progreso: 85, color: "bg-blue-500" },
-    { nombre: "Est. Datos", progreso: 70, color: "bg-green-500" },
-    { nombre: "Matemáticas", progreso: 60, color: "bg-yellow-500" },
-    { nombre: "Base de Datos", progreso: 90, color: "bg-purple-500" }
+    { nombre: "Ing. Software", progreso: 0, color: "bg-blue-500" },
+    { nombre: "Est. Datos", progreso: 0, color: "bg-green-500" },
+    { nombre: "Matemáticas", progreso: 0, color: "bg-yellow-500" },
+    { nombre: "Base de Datos", progreso: 0, color: "bg-purple-500" }
   ];
 
   return (

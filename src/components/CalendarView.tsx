@@ -1,9 +1,11 @@
+// CalendarView.tsx
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { CalendarDay } from "./CalendarDay";
-import { 
+import { useMemo } from "react";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -13,16 +15,17 @@ import {
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
   Filter,
   Calendar as CalendarIcon
 } from "lucide-react";
+import { useTasks, Task } from "../contexts/TasksContext";
 
 interface CalendarViewProps {
-  onNavigate: (page: string) => void;
+  onNavigate?: (page: string) => void;
 }
 
 export function CalendarView({ onNavigate }: CalendarViewProps) {
@@ -31,68 +34,79 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
   const [view, setView] = useState<"month" | "week" | "day">("month");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Mock data
-  const tasks = [
-    {
-      id: "1",
-      title: "Entrega proyecto",
-      materia: "Ing. Software",
-      prioridad: "alta" as const,
-      completada: false,
-      date: new Date(2025, 0, 15) // 15 enero 2025
-    },
-    {
-      id: "2",
-      title: "Parcial matemáticas", 
-      materia: "Matemáticas",
-      prioridad: "alta" as const,
-      completada: false,
-      date: new Date(2025, 0, 12)
-    },
-    {
-      id: "3",
-      title: "Taller algoritmos",
-      materia: "Est. Datos", 
-      prioridad: "media" as const,
-      completada: true,
-      date: new Date(2025, 0, 8)
-    },
-    {
-      id: "4",
-      title: "Presentación BD",
-      materia: "Base de Datos",
-      prioridad: "baja" as const,
-      completada: false,
-      date: new Date(2025, 0, 18)
-    }
-  ];
+  // Tasks context
+  const { tasks, addTask } = useTasks();
 
-  const materias = [
-    "Ingeniería de Software",
-    "Estructuras de Datos", 
-    "Matemáticas Discretas",
-    "Base de Datos",
-    "Redes de Computadores"
-  ];
+  // modal form
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [materia, setMateria] = useState("");
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [prioridad, setPrioridad] = useState<"alta" | "media" | "baja">("media");
+
+  // filtros
+  const [filterMateria, setFilterMateria] = useState<string>("all");
+  const [filterPrioridad, setFilterPrioridad] = useState<string>("all");
+  const [filterEstado, setFilterEstado] = useState<string>("all"); // all | pending | completed
+
+  
+  const availableMaterias = useMemo(() => {
+  const s = new Set<string>();
+  for (const t of tasks) {
+    if (t.materia && t.materia.trim() !== "") s.add(t.materia.trim());
+  }
+  return Array.from(s).sort((a, b) => a.localeCompare(b, 'es'));
+}, [tasks]);
+
+  // helper para parsear fecha desde Task
+  const taskDate = (t: Task): Date | null => {
+    if (!t) return null;
+    if ((t as any).date instanceof Date) return (t as any).date as Date;
+    if (typeof t.fechaEntrega === "string" && t.fechaEntrega) {
+      const d = new Date(t.fechaEntrega);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
+  // función que verifica si una tarea cumple los filtros
+  const taskMatchesFilters = (t: Task) => {
+    // materia
+    if (filterMateria !== "all") {
+      // t.materia puede ser undefined
+      if ((t.materia ?? "") !== filterMateria) return false;
+    }
+
+    // prioridad
+    if (filterPrioridad !== "all") {
+      if ((t.prioridad ?? "media") !== filterPrioridad) return false;
+    }
+
+    // estado
+    if (filterEstado === "pending" && t.completada) return false;
+    if (filterEstado === "completed" && !t.completada) return false;
+
+    return true;
+  };
 
   // Calendar functions
   const getMonthData = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
+
     const days = [];
     const current = new Date(startDate);
-    
+
     for (let i = 0; i < 42; i++) {
-      const dayTasks = tasks.filter(task => 
-        task.date.toDateString() === current.toDateString()
-      );
-      
+      const dayTasks = tasks.filter((task) => {
+        const d = taskDate(task);
+        return d ? d.toDateString() === current.toDateString() && taskMatchesFilters(task) : false;
+      });
+
       days.push({
         date: new Date(current),
         isToday: current.toDateString() === new Date().toDateString(),
@@ -100,10 +114,10 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
         isOtherMonth: current.getMonth() !== month,
         tasks: dayTasks
       });
-      
+
       current.setDate(current.getDate() + 1);
     }
-    
+
     return days;
   };
 
@@ -128,10 +142,32 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
 
   const handleTaskDrop = (taskId: string, date: Date) => {
     console.log(`Mover tarea ${taskId} a ${date.toDateString()}`);
-    // Aquí implementarías la lógica para mover la tarea
+    // si quieres usar updateTask: updateTask(taskId, { fechaEntrega: 'yyyy-mm-dd' })
   };
 
   const monthData = getMonthData();
+
+  const handleCreateTask = () => {
+    if (!title.trim() || !fechaEntrega) return;
+
+    addTask({
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      description: description.trim() || undefined,
+      materia: materia || undefined,
+      fechaEntrega,
+      prioridad,
+      completada: false,
+      points: 50
+    });
+
+    setTitle("");
+    setDescription("");
+    setMateria("");
+    setFechaEntrega("");
+    setPrioridad("media");
+    setIsCreateModalOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 p-6">
@@ -147,7 +183,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               Organiza y programa tus tareas académicas
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1 bg-white rounded-lg p-1">
               <Button
@@ -172,7 +208,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                 Día
               </Button>
             </div>
-            
+
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -187,23 +223,22 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                 <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium">Título</label>
-                    <Input placeholder="Nombre de la tarea" />
+                    <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre de la tarea" />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Descripción</label>
-                    <Textarea placeholder="Descripción opcional" />
+                    <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción opcional" />
                   </div>
                   <div>
                     <label className="text-sm font-medium">Materia</label>
-                    <Select>
+                    <Select value={materia} onValueChange={(v: string) => setMateria(v)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar materia" />
                       </SelectTrigger>
                       <SelectContent>
-                        {materias.map((materia) => (
-                          <SelectItem key={materia} value={materia}>
-                            {materia}
-                          </SelectItem>
+                        <SelectItem value="">Sin materia</SelectItem>
+                        {availableMaterias.map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -211,7 +246,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium">Fecha de entrega</label>
-                      <Input type="date" />
+                      <Input type="date" value={fechaEntrega} onChange={(e) => setFechaEntrega(e.target.value)} />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Tiempo estimado (min)</label>
@@ -220,7 +255,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                   </div>
                   <div>
                     <label className="text-sm font-medium">Prioridad</label>
-                    <Select>
+                    <Select value={prioridad} onValueChange={(v: "alta" | "media" | "baja") => setPrioridad(v)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar prioridad" />
                       </SelectTrigger>
@@ -232,12 +267,8 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                     </Select>
                   </div>
                   <div className="flex gap-2 justify-end">
-                    <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={() => setIsCreateModalOpen(false)}>
-                      Crear tarea
-                    </Button>
+                    <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>Cancelar</Button>
+                    <Button onClick={handleCreateTask}>Crear tarea</Button>
                   </div>
                 </div>
               </DialogContent>
@@ -270,14 +301,14 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                 <div className="grid grid-cols-7 gap-0 border border-gray-200 rounded-lg overflow-hidden">
                   {/* Week Headers */}
                   {weekDays.map((day) => (
-                    <div 
+                    <div
                       key={day}
                       className="bg-gray-50 p-3 text-center text-sm font-medium border-b border-gray-200"
                     >
                       {day}
                     </div>
                   ))}
-                  
+
                   {/* Calendar Days */}
                   {monthData.map((dayData, index) => (
                     <CalendarDay
@@ -286,8 +317,8 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                       isToday={dayData.isToday}
                       isSelected={dayData.isSelected}
                       isOtherMonth={dayData.isOtherMonth}
-                      tasks={dayData.tasks}
-                      onDateClick={handleDateClick}
+                      tasks={dayData.tasks.map((t) => ({ ...t, materia: t.materia ?? "", prioridad: t.prioridad ?? "media", completada: t.completada ?? false }))} onDateClick={handleDateClick}
+                      
                       onTaskDrop={handleTaskDrop}
                     />
                   ))}
@@ -303,7 +334,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {selectedDate.toLocaleDateString('es-CO', { 
+                    {selectedDate.toLocaleDateString('es-CO', {
                       weekday: 'long',
                       day: 'numeric',
                       month: 'long'
@@ -313,17 +344,20 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                 <CardContent>
                   <div className="space-y-3">
                     {tasks
-                      .filter(task => task.date.toDateString() === selectedDate.toDateString())
+                      .filter(task => {
+                        const d = taskDate(task);
+                        return d ? d.toDateString() === selectedDate.toDateString() && taskMatchesFilters(task) : false;
+                      })
                       .map((task) => (
                         <div key={task.id} className="p-3 border rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="font-medium text-sm">{task.title}</h4>
-                            <Badge 
+                            <Badge
                               variant="outline"
                               className={
                                 task.prioridad === "alta" ? "border-red-200 text-red-800" :
-                                task.prioridad === "media" ? "border-yellow-200 text-yellow-800" :
-                                "border-green-200 text-green-800"
+                                  task.prioridad === "media" ? "border-yellow-200 text-yellow-800" :
+                                    "border-green-200 text-green-800"
                               }
                             >
                               {task.prioridad}
@@ -334,8 +368,11 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
                           </Badge>
                         </div>
                       ))}
-                    
-                    {tasks.filter(task => task.date.toDateString() === selectedDate.toDateString()).length === 0 && (
+
+                    {tasks.filter(task => {
+                      const d = taskDate(task);
+                      return d ? d.toDateString() === selectedDate.toDateString() && taskMatchesFilters(task) : false;
+                    }).length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         No hay tareas programadas para este día
                       </p>
@@ -356,24 +393,24 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               <CardContent className="space-y-3">
                 <div>
                   <label className="text-sm font-medium">Materia</label>
-                  <Select>
+                  <Select value={filterMateria} onValueChange={(v: string) => setFilterMateria(v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas las materias" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas las materias</SelectItem>
-                      {materias.map((materia) => (
-                        <SelectItem key={materia} value={materia}>
-                          {materia}
+                      {availableMaterias.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {m}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div>
                   <label className="text-sm font-medium">Prioridad</label>
-                  <Select>
+                  <Select value={filterPrioridad} onValueChange={(v: string) => setFilterPrioridad(v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas las prioridades" />
                     </SelectTrigger>
@@ -388,7 +425,7 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
 
                 <div>
                   <label className="text-sm font-medium">Estado</label>
-                  <Select>
+                  <Select value={filterEstado} onValueChange={(v: string) => setFilterEstado(v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos los estados" />
                     </SelectTrigger>
@@ -410,14 +447,15 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
               <CardContent>
                 <div className="space-y-3">
                   {tasks
-                    .filter(task => !task.completada && task.date >= new Date())
-                    .sort((a, b) => a.date.getTime() - b.date.getTime())
+                    .map(t => ({ ...t, _date: taskDate(t) }))
+                    .filter(t => t._date && !t.completada && (t._date as Date) >= new Date() && taskMatchesFilters(t))
+                    .sort((a, b) => (a._date as Date).getTime() - (b._date as Date).getTime())
                     .slice(0, 3)
                     .map((task) => (
                       <div key={task.id} className="p-3 border rounded-lg">
                         <h4 className="font-medium text-sm mb-1">{task.title}</h4>
                         <p className="text-xs text-muted-foreground mb-2">
-                          {task.date.toLocaleDateString('es-CO')}
+                          {task._date ? (task._date as Date).toLocaleDateString('es-CO') : ""}
                         </p>
                         <Badge variant="secondary" className="text-xs">
                           {task.materia}
@@ -432,4 +470,6 @@ export function CalendarView({ onNavigate }: CalendarViewProps) {
       </div>
     </div>
   );
+}
+
 }

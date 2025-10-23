@@ -1,78 +1,145 @@
-// src/auth/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState } from "react";
+// src/contexts/AuthContext.tsx
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { toast } from "sonner"; // Asegúrate de tener sonner
 
-export type User = {
-  id: string;
-  name: string;
-  email: string;
-  level?: number;
-  points?: number;
-};
+// Interfaz User (simple, puedes añadir más campos)
+export interface User {
+  id: string; // ID único
+  username: string; // Nombre de usuario para login
+  email?: string; // Email opcional
+  displayName?: string; // Nombre a mostrar
+}
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  login: (userData: User) => void;
-  logout: () => void;
-  register: (userData: User) => void;
-  updateProfile: (patch: Partial<User>) => void; // <-- nuevo
   ready: boolean;
-};
+  // Funciones de autenticación
+  loginWithUsernamePassword: (username: string, password: string) => Promise<boolean>; // Devuelve true/false
+  registerWithUsernamePassword: (username: string, password: string, email?: string) => Promise<boolean>; // Devuelve true/false
+  loginWithGoogle: (googleUser: any) => void; // Mantenemos la simulación de Google
+  logout: () => void;
+  // Funciones de perfil/calendario (si las tienes)
+  // updateProfile: (data: Partial<User>) => void;
+  // isCalendarConnected: boolean;
+  // connectGoogleCalendar: () => void;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const STORAGE_KEY = "taskup_user_v1";
+const LOCAL_STORAGE_USER_KEY = 'taskup_auth_user_v2'; // Nueva clave para evitar conflictos
 
-export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+// --- SIMULACIÓN DE BASE DE DATOS DE USUARIOS ---
+// En una app real, esto estaría en tu backend
+const mockUserDatabase: User[] = [
+    { id: 'user_admin', username: 'admin', displayName: 'Administrador' },
+    { id: 'user_jaider', username: 'jaider', email: 'jaider@mail.com', displayName: 'Jaider C.' },
+];
+// --- FIN SIMULACIÓN ---
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(() => {
+    // Cargar usuario desde localStorage al inicio
+    try {
+      const storedUser = localStorage.getItem(LOCAL_STORAGE_USER_KEY);
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch { return null; }
+  });
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        setUser(JSON.parse(raw));
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    }
+    // Simular que la carga inicial está lista
     setReady(true);
   }, []);
 
-  const persist = (u: User | null) => {
-    if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-    else localStorage.removeItem(STORAGE_KEY);
-    setUser(u);
+  // Guardar usuario en localStorage cuando cambie
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem(LOCAL_STORAGE_USER_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_USER_KEY);
+    }
+  }, [user]);
+
+  // --- SIMULACIÓN: Login con Username/Password ---
+  const loginWithUsernamePassword = async (username: string, password: string): Promise<boolean> => {
+    console.log("Intentando iniciar sesión con:", username, password);
+    // Simular búsqueda en la "base de datos"
+    const foundUser = mockUserDatabase.find(u => u.username.toLowerCase() === username.toLowerCase());
+
+    // Simular validación de contraseña (aquí cualquier contraseña funciona si el usuario existe)
+    if (foundUser) {
+      toast.success(`Bienvenido, ${foundUser.displayName || foundUser.username}!`);
+      setUser(foundUser);
+      return true; // Éxito
+    } else {
+      toast.error("Usuario o contraseña incorrectos.");
+      return false; // Fallo
+    }
   };
 
-  const login = (userData: User) => {
-    persist(userData);
+  // --- SIMULACIÓN: Registro con Username/Password ---
+  const registerWithUsernamePassword = async (username: string, password: string, email?: string): Promise<boolean> => {
+    console.log("Intentando registrar:", username, email);
+    // Verificar si el usuario ya existe en nuestra simulación
+    if (mockUserDatabase.find(u => u.username.toLowerCase() === username.toLowerCase())) {
+      toast.error(`El nombre de usuario "${username}" ya está en uso.`);
+      return false; // Fallo - Usuario existe
+    }
+
+    // Crear nuevo usuario (simulado)
+    const newUser: User = {
+      id: `user_${Date.now()}`,
+      username: username,
+      email: email,
+      displayName: username, // Usar username como display name por defecto
+    };
+
+    // Añadir a nuestra "base de datos" simulada (esto se perderá al recargar, idealmente iría a un backend)
+    mockUserDatabase.push(newUser);
+    console.log("Base de datos simulada actualizada:", mockUserDatabase);
+
+    toast.success(`¡Usuario "${username}" registrado con éxito! Iniciando sesión...`);
+    setUser(newUser); // Iniciar sesión automáticamente
+    return true; // Éxito
   };
 
-  const register = (userData: User) => {
-    persist(userData);
+
+  // Simulación Login con Google (sin cambios)
+  const loginWithGoogle = (googleUser: any) => {
+    const appUser: User = {
+      id: googleUser.uid,
+      username: googleUser.email || `google_${googleUser.uid.substring(0, 5)}`, // Usar email o ID corto como username
+      email: googleUser.email,
+      displayName: googleUser.displayName || "Usuario Google",
+    };
+    setUser(appUser);
+    toast.success(`Bienvenido vía Google, ${appUser.displayName}!`);
   };
 
   const logout = () => {
-    persist(null);
+    setUser(null);
+    toast.info("Sesión cerrada.");
   };
 
-  const updateProfile = (patch: Partial<User>) => {
-    setUser(prev => {
-      if (!prev) return prev;
-      const updated = { ...prev, ...patch };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+  const value: AuthContextType = {
+    user,
+    ready,
+    loginWithUsernamePassword,
+    registerWithUsernamePassword,
+    loginWithGoogle,
+    logout,
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, register, updateProfile, ready }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};

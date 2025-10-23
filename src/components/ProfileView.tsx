@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input"; // si no lo tienes, usa <input> nativo
 import { Card } from "./ui/card";
+import { GoogleConnectCalendar } from "./GoogleConnectCalendar"; // Importado
 
 export const ProfileView: React.FC = () => {
   const { user, updateProfile } = useAuth();
@@ -88,9 +89,20 @@ export const ProfileView: React.FC = () => {
 
         {/* sección extensible: información adicional editable */}
         <div className="bg-white p-6 rounded-2xl shadow">
-          <h3 className="font-semibold mb-3">Información adicional</h3>
-          <p className="text-sm text-slate-600">Aquí puedes agregar más campos como carrera, semestre, bio, enlaces, etc.</p>
-          <div className="mt-4 text-sm text-slate-500">Ejemplo: carrera, semestre, teléfono, ubicación.</div>
+          <h3 className="font-semibold mb-3">Conexiones</h3>
+          
+          {/* Conexión a Google Calendar */}
+          <div className="mb-4">
+            <GoogleConnectCalendar />
+          </div>
+
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Información adicional (Por definir)</h3>
+            <p className="text-sm text-slate-600">
+              {/* TODO(Jaider): Definir el contenido de esta sección. */}
+              Aquí puedes agregar más campos como carrera, semestre, bio, enlaces, etc.
+            </p>
+          </div>
         </div>
       </div>
     </div>

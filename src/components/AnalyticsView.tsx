@@ -1,149 +1,167 @@
-// src/components/AnalyticsView.tsx
-import React, { useMemo } from "react";
-import { useTasks } from "../contexts/TasksContext";
-import { useParticipants } from "../contexts/ParticipantsContext";
+// src/components/AnalyticsView.tsx (or PerformanceView.tsx)
+import React, { useMemo, useState } from "react";
+import { useTasks, Task } from "../contexts/TasksContext"; // Import Task interface
+import { useGroups, Group } from "../contexts/GroupsContext"; // Import Group interface
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Legend, PieChart, Pie, Cell
 } from "recharts";
 import { Card } from "./ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 const COLORS = ["#2563eb", "#06b6d4", "#f97316", "#f59e0b", "#10b981"];
 
 export const AnalyticsView: React.FC = () => {
   const { tasks } = useTasks();
-  const { participants } = useParticipants();
+  const { myGroups } = useGroups(); // Get groups from context
 
-  // --- Metric: tareas completadas por día (últimos 14 días) ---
+  const [filterGroup, setFilterGroup] = useState<string>("general"); // 'general' or a group ID
+
+  // Filter tasks based on the selected group or 'general'
+  const filteredTasks = useMemo(() => {
+    console.log(`Filtering tasks for: ${filterGroup}`);
+    if (filterGroup === "general") {
+      // Tasks "generales" (sin grupo)
+      return tasks.filter(t => !t.groupId);
+    }
+    // Tasks del grupo seleccionado
+    return tasks.filter(t => t.groupId === filterGroup);
+  }, [tasks, filterGroup]);
+
+  // --- Metric: Tasks completed per day (Last 14 days) ---
   const tasksPerDay = useMemo(() => {
     const map = new Map<string, { date: string; completadas: number; total: number }>();
     const today = new Date();
+    // Initialize map for the last 14 days
     for (let i = 13; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
       map.set(key, { date: key, completadas: 0, total: 0 });
     }
-
-    tasks.forEach(t => {
+    // Populate map with filtered tasks
+    filteredTasks.forEach(t => {
       if (!t.fechaEntrega) return;
-      // Intentamos parsear dd/mm/yyyy o ISO
       let dateKey = "";
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(t.fechaEntrega)) {
-        const [dd, mm, yyyy] = t.fechaEntrega.split("/");
-        dateKey = `${yyyy}-${mm}-${dd}`;
-      } else {
-        // asume ISO
-        try { dateKey = new Date(t.fechaEntrega).toISOString().slice(0,10); } catch { dateKey = ""; }
+      try {
+        // Ensure date is parsed correctly from YYYY-MM-DD
+        dateKey = new Date(t.fechaEntrega.replace(/-/g, '/')).toISOString().slice(0, 10);
+      } catch { dateKey = ""; }
+
+      if (map.has(dateKey)) {
+        const entry = map.get(dateKey)!;
+        entry.total += 1;
+        if (t.completada) entry.completadas += 1;
       }
-      if (!map.has(dateKey)) return;
-      const entry = map.get(dateKey)!;
-      entry.total += 1;
-      if (t.completada) entry.completadas += 1;
     });
-
+    // Format for chart: { date: 'MM-DD', completadas: N, total: M }
     return Array.from(map.values()).map(x => ({ date: x.date.slice(5), completadas: x.completadas, total: x.total }));
-  }, [tasks]);
+  }, [filteredTasks]);
 
-  // --- Metric: tareas por materia (top 6) ---
-  const tasksBySubject = useMemo(() => {
-    const counts: Record<string, number> = {};
-    tasks.forEach(t => {
-      const m = t.materia || "Sin materia";
-      counts[m] = (counts[m] || 0) + 1;
+
+  // --- Metric: Tasks per Group (Top 6 if 'general' selected, otherwise just the selected group) ---
+  const tasksByGroup = useMemo(() => {
+    const groupMap: Record<string, { name: string; value: number }> = {};
+
+    // Get group names for lookup
+    const groupNameById: Record<string, string> = {};
+    myGroups.forEach(g => { groupNameById[g.id] = g.name });
+
+    tasks.forEach(task => { // Iterate through ALL tasks to count totals per group
+        const groupId = task.groupId;
+        const groupName = groupId ? (groupNameById[groupId] || `Grupo ${groupId.substring(0,4)}`) : "Tareas Sueltas";
+
+        if (!groupMap[groupName]) {
+            groupMap[groupName] = { name: groupName, value: 0 };
+        }
+        groupMap[groupName].value += 1;
     });
-    const arr = Object.entries(counts).map(([name, value]) => ({ name, value }));
-    arr.sort((a,b)=>b.value-a.value);
-    return arr.slice(0,6);
-  }, [tasks]);
 
-  // --- Metric: tareas estado (completadas / pendientes) ---
+    const arr = Object.values(groupMap);
+    arr.sort((a, b) => b.value - a.value); // Sort descending by count
+
+    // If 'general' is selected, show top groups. Otherwise, filter isn't needed here.
+    // This chart will show the distribution across all relevant groups.
+    return arr.slice(0, 6); // Limit to top 6 for readability
+
+  }, [tasks, myGroups]); // Depend on all tasks and groups list
+
+
+  // --- Metric: Task Status (Completed / Pending) ---
   const tasksStatus = useMemo(() => {
-    const completed = tasks.filter(t => t.completada).length;
-    const pending = tasks.length - completed;
+    const completed = filteredTasks.filter(t => t.completada).length;
+    const pending = filteredTasks.length - completed;
+    // Return data formatted for PieChart
     return [
       { name: "Completadas", value: completed },
       { name: "Pendientes", value: pending }
     ];
-  }, [tasks]);
+  }, [filteredTasks]);
 
-  // --- Metric: top participantes (ranking) ---
-  const topParticipants = useMemo(() => {
-    return [...participants].sort((a,b)=>b.points-a.points).slice(0,5);
-  }, [participants]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold">Analytics</h1>
+        {/* Header with Filter */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Rendimiento</h1>
+          <Select value={filterGroup} onValueChange={setFilterGroup}>
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="Ver rendimiento..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="general">Rendimiento General </SelectItem>
+              {myGroups.map(g => (
+                <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Chart 1: Tareas completadas (serie temporal) */}
-          <Card className="lg:col-span-2">
+        {/* Chart Row 1 */}
+        <div className="grid lg:grid-cols-1 gap-6">
+          {/* Chart 1: Tasks completed (Time series) - Uses filteredTasks */}
+          <Card className="lg:col-span-1">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Tareas completadas (últimos 14 días)</h3>
               <div style={{ width: "100%", height: 260 }}>
-                <ResponsiveContainer>
-                  <LineChart data={tasksPerDay} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="completadas" stroke="#10b981" strokeWidth={2} />
-                    <Line type="monotone" dataKey="total" stroke="#2563eb" strokeDasharray="5 5" strokeWidth={1.5} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </Card>
-
-          {/* Chart 2: Top participantes */}
-          <Card>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Top participantes</h3>
-              <div className="space-y-3">
-                {topParticipants.length === 0 ? (
-                  <div className="text-sm text-slate-500">No hay participantes aún.</div>
+                {filteredTasks.length === 0 && tasksPerDay.every(d => d.total === 0) ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">No hay datos de tareas completadas para este período/grupo.</div>
                 ) : (
-                  topParticipants.map((p, i) => (
-                    <div key={p.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary">
-                          {p.name.split(" ").map(s => s[0]).slice(0,2).join("")}
-                        </div>
-                        <div>
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-slate-500">{p.school || ""}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-semibold">{p.points}</div>
-                        <div className="text-xs text-slate-500">#{i+1}</div>
-                      </div>
-                    </div>
-                  ))
+                  <ResponsiveContainer>
+                    <LineChart data={tasksPerDay} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Line name="Completadas" type="monotone" dataKey="completadas" stroke="#10b981" strokeWidth={2} />
+                      <Line name="Totales Creadas/Vencidas" type="monotone" dataKey="total" stroke="#8884d8" strokeDasharray="5 5" strokeWidth={1.5} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 )}
               </div>
             </div>
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Chart 3: tareas por materia (barras) */}
+        {/* Chart Row 2 */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Chart 2: Tasks per Group - Uses tasksByGroup derived from ALL tasks */}
           <Card>
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Tareas por materia</h3>
-              {tasksBySubject.length === 0 ? (
-                <div className="text-sm text-slate-500">No hay tareas.</div>
+              <h3 className="text-lg font-semibold mb-4">Tareas por Grupo (Top 6)</h3>
+              {tasksByGroup.length === 0 ? (
+                <div className="flex items-center justify-center h-[220px] text-muted-foreground">No hay tareas en grupos.</div>
               ) : (
                 <div style={{ width: "100%", height: 220 }}>
                   <ResponsiveContainer>
-                    <BarChart data={tasksBySubject} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                    <BarChart data={tasksByGroup} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-15} textAnchor="end" height={40} />
                       <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="value" fill="#2563eb" />
+                      <Bar name="Nº Tareas" dataKey="value" fill="#2563eb" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -151,33 +169,24 @@ export const AnalyticsView: React.FC = () => {
             </div>
           </Card>
 
-          {/* Donut: estado de tareas */}
+          {/* Chart 3: Task Status (Pie Chart) - Uses filteredTasks */}
           <Card>
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Estado de tareas</h3>
-              <div style={{ width: "100%", height: 220 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={tasksStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40} label>
-                      {tasksStatus.map((entry, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </Card>
-
-          {/* Small stats */}
-          <Card>
-            <div className="p-6 space-y-3">
-              <h3 className="text-lg font-semibold">Resumen</h3>
-              <div className="text-sm text-slate-600">
-                <div>Total tareas: <strong>{tasks.length}</strong></div>
-                <div>Tareas completadas: <strong>{tasks.filter(t=>t.completada).length}</strong></div>
-                <div>Participantes: <strong>{participants.length}</strong></div>
-                <div>Puntos totales: <strong>{participants.reduce((s,p)=>s+p.points,0)}</strong></div>
-              </div>
+              <h3 className="text-lg font-semibold mb-4">Estado de Tareas ({filterGroup === 'general' ? 'Generales' : myGroups.find(g=>g.id===filterGroup)?.name})</h3>
+              {(tasksStatus[0].value === 0 && tasksStatus[1].value === 0) ? (
+                 <div className="flex items-center justify-center h-[220px] text-muted-foreground">No hay tareas {filterGroup === 'general' ? 'generales' : `en este grupo`}.</div>
+              ) : (
+                <div style={{ width: "100%", height: 220 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie data={tasksStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40} label={(entry) => `${entry.name} (${entry.value})`}>
+                        {tasksStatus.map((entry, idx) => <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value) => value.toLocaleString()} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </Card>
         </div>

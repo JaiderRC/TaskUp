@@ -7,15 +7,15 @@ import { TaskCard } from "./TaskCard";
 import { useTasks } from "../contexts/TasksContext";
 import { 
   Calendar, 
-  Clock, 
+  // Clock, // No se usa si se quitan recomendaciones
   Trophy, 
   Target, 
   Flame, 
   BookOpen,
   TrendingUp,
   Plus,
-  Bell,
-  Lightbulb
+  // Bell, // No se usa si se quitan recomendaciones
+  // Lightbulb // No se usa si se quitan recomendaciones
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext"; 
 
@@ -53,22 +53,7 @@ const { tasks, toggleComplete } = useTasks(); // 👈 obtén tareas del contexto
 // mostramos solo las 5 más recientes
 const proximasTareas = tasks.slice(0, 5);
 
-  const recomendaciones = [
-    {
-      tipo: "estudio",
-      titulo: "Sesión Pomodoro recomendada",
-      descripcion: "25 min de estudio + 5 min descanso",
-      materia: "Matemáticas Discretas",
-      icono: Clock
-    },
-    {
-      tipo: "pausa",
-      titulo: "Toma un descanso",
-      descripcion: "Has estado estudiando por 2 horas",
-      materia: "",
-      icono: Bell
-    }
-  ];
+  // RECOMENDACIONES ELIMINADAS
 
   const materias = [
     { nombre: "Ing. Software", progreso: 0, color: "bg-blue-500" },
@@ -83,6 +68,7 @@ const proximasTareas = tasks.slice(0, 5);
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
+            {/* Título de la página renombrado en Navigation.tsx */}
             <h1 className="text-3xl font-bold">¡Hola, {user?.name || "Usuario"}! 👋</h1>
             <p className="text-muted-foreground capitalize">{fechaHoy}</p>
           </div>
@@ -184,56 +170,20 @@ const proximasTareas = tasks.slice(0, 5);
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-{proximasTareas.map((tarea) => (
-  <TaskCard
-    key={tarea.id}
-    {...tarea}
-    materia={tarea.materia ?? ""}
-    onComplete={() => toggleComplete(tarea.id)}
-    onEdit={() => console.log("Editar:", tarea.id)}
-  />
-))}
+                {proximasTareas.map((tarea) => (
+                  <TaskCard
+                    key={tarea.id}
+                    {...tarea}
+                    materia={tarea.materia ?? ""}
+                    onComplete={() => toggleComplete(tarea.id)}
+                    onEdit={() => console.log("Editar:", tarea.id)}
+                  />
+                ))}
               </CardContent>
             </Card>
 
-            {/* Recomendaciones */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5" />
-                  Recomendaciones personalizadas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {recomendaciones.map((rec, index) => {
-                  const Icon = rec.icono;
-                  return (
-                    <div 
-                      key={index}
-                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/50"
-                    >
-                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium">{rec.titulo}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {rec.descripcion}
-                        </p>
-                        {rec.materia && (
-                          <Badge variant="outline" className="mt-2">
-                            {rec.materia}
-                          </Badge>
-                        )}
-                      </div>
-                      <Button size="sm">
-                        Seguir
-                      </Button>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
+            {/* SECCIÓN DE RECOMENDACIONES ELIMINADA */}
+
           </div>
 
           {/* Sidebar */}
@@ -301,9 +251,9 @@ const proximasTareas = tasks.slice(0, 5);
                   <Button 
                     variant="outline" 
                     className="w-full"
-                    onClick={() => onNavigate("gamificacion")}
+                    onClick={() => onNavigate("gamificacion")} // Esto ahora es 'grupos'
                   >
-                    Ver ranking completo
+                    Ver grupos de trabajo
                   </Button>
                 </div>
               </CardContent>

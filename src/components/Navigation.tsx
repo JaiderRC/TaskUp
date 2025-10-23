@@ -7,9 +7,9 @@ import {
   Home,
   Calendar,
   CheckSquare,
-  Trophy,
+  Users, // Cambiado desde Trophy
   BarChart3,
-  Settings,
+  // Settings, // Eliminado
   Bell,
   Search,
   User,
@@ -27,7 +27,6 @@ interface NavigationProps {
 }
 
 export function Navigation({
-
   currentPage,
   onPageChange,
   userLevel,
@@ -41,11 +40,11 @@ export function Navigation({
   const { logout } = useAuth();
 
   const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: Home },
+    { id: "resumen", label: "Resumen", icon: Home },
     { id: "calendario", label: "Calendario", icon: Calendar },
     { id: "tareas", label: "Tareas", icon: CheckSquare },
-    { id: "gamificacion", label: "Gamificación", icon: Trophy },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "grupos", label: "Grupos de trabajo", icon: Users },
+    { id: "rendimiento", label: "Rendimiento", icon: BarChart3 },
   ];
 
   // Close user menu on outside click
@@ -152,14 +151,8 @@ export function Navigation({
                     Perfil
                   </button>
 
-                  <button
-                    onClick={() => { onPageChange("configuracion"); setIsUserOpen(false); }}
-                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-slate-50"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Configuración
-                  </button>
-
+                  {/* Botón de Configuración Eliminado */}
+                  
                   <div className="border-t my-1" />
 
                   <button

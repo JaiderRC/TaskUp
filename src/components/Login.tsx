@@ -1,79 +1,162 @@
 // src/components/Login.tsx
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import { Button } from "./ui/button";
-import { useAuth } from "../auth/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { useAuth } from '../auth/AuthContext'; // Corregido: auth/AuthContext.tsx
+import { Mail, LockKeyhole, LogIn, UserPlus, User as UserIcon } from 'lucide-react'; // Añadido UserIcon
+import { Toaster, toast } from 'sonner'; // Importar Toaster y toast
 
 export const Login: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
-  const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const { loginWithUsernamePassword, registerWithUsernamePassword, loginWithGoogle } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(''); // Para el registro
+  const [isRegistering, setIsRegistering] = useState(false); // Alternar vista
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const user = {
-      id: "u_" + Date.now(),
-      name: name || email.split("@")[0] || "Estudiante",
-      email,
-      level: 1,
-      points: 0,
-    };
-    login(user);
-    onSuccess?.();
+  const handleGoogleLogin = () => {
+    // Simulación Google
+    const mockGoogleUser = { uid: "mock_google_id", email: "google@demo.com", displayName: "Google User" };
+    loginWithGoogle(mockGoogleUser);
+    onSuccess?.(); // Llama a onSuccess si el login simulado es exitoso
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // Evitar recarga de página por submit de form
+    let success = false;
+
+    if (isRegistering) {
+      if (!username || !password) {
+        toast.error("Nombre de usuario y contraseña son obligatorios para registrarse.");
+        return;
+      }
+      // Llamar a la función de registro del contexto
+      success = await registerWithUsernamePassword(username, password, email || undefined);
+    } else {
+      if (!username || !password) {
+        toast.error("Nombre de usuario y contraseña son obligatorios.");
+        return;
+      }
+      // Llamar a la función de login del contexto
+      success = await loginWithUsernamePassword(username, password);
+    }
+
+    if (success) {
+      onSuccess?.(); // Llama a onSuccess si el login/registro simulado tuvo éxito
+    }
+    // Los mensajes de error/éxito los maneja el contexto con toasts
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4">
-      <div className="w-full max-w-md bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl shadow-blue-100/50 p-8 border border-white/70">
-        {/* Header con icono */}
-        <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Iniciar Sesión
-          </h2>
-          <p className="text-slate-500 mt-2 text-sm">Demo educativa - Ingresa tus datos</p>
-        </div>
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+      <Toaster position="top-center" richColors /> {/* Añadir Toaster para mensajes */}
+      <Card className="w-full max-w-sm p-4 shadow-lg">
+        <CardHeader className="text-center space-y-2">
+          <CardTitle className="text-3xl font-bold">
+            {isRegistering ? "Crear Cuenta" : "Iniciar Sesión"}
+          </CardTitle>
+          <CardDescription>
+            {isRegistering ? "Ingresa tus datos para registrarte." : "Accede a tu cuenta de TaskUp."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Usar un formulario para manejar el submit */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              {/* Campo Nombre de Usuario */}
+              <div className="space-y-2">
+                <Label htmlFor="username">Nombre de Usuario</Label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="tu_usuario"
+                    className="pl-10"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Nombre (opcional)
-            </label>
-            <input
-              className="w-full bg-white/50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200 placeholder:text-slate-400"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="¿Cómo te llamas?"
-            />
+              {/* Campo Email (Solo para Registro) */}
+              {isRegistering && (
+                <div className="space-y-2">
+                  <Label htmlFor="email">Correo Electrónico (Opcional)</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="tu@correo.com"
+                      className="pl-10"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Campo Contraseña */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <div className="relative">
+                  <LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    className="pl-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Botón de Submit (Login/Registro) */}
+              <Button type="submit" className="w-full">
+                {isRegistering ? <UserPlus className="mr-2 h-4 w-4" /> : <LogIn className="mr-2 h-4 w-4" />}
+                {isRegistering ? "Registrarse" : "Iniciar Sesión"}
+              </Button>
+            </div>
+          </form>
+
+          {/* Separador O/O O */}
+          <div className="relative my-6"> {/* Añadido margen vertical */}
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-300 dark:border-gray-700" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-card px-2 text-gray-500">O</span>
+            </div>
           </div>
-          
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Correo electrónico
-            </label>
-            <input
-              className="w-full bg-white/50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all duration-200 placeholder:text-slate-400"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-              type="email"
-              required
-            />
-          </div>
-          <Button 
-            type="submit" 
-            className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-black font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-200 transform hover:-translate-y-0.5 hover:from-blue-600 hover:to-indigo-700 border-0"
-          >
-            Comenzar Ahora
-            <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
+
+          {/* Botón de Google */}
+          <Button variant="outline" className="w-full flex items-center gap-2" onClick={handleGoogleLogin}>
+            <img src="https://www.svgrepo.com/show/355037/google.svg" alt="Google icon" className="h-5 w-5" />
+            Iniciar sesión con Google
           </Button>
-        </form>
-      </div>
+
+          {/* Enlaces adicionales */}
+          <div className="text-center text-sm space-y-2 pt-4"> {/* Añadido padding top */}
+            <p className="text-gray-500">
+              {isRegistering ? "¿Ya tienes una cuenta? " : "¿No tienes una cuenta? "}
+              <Button variant="link" onClick={() => setIsRegistering(!isRegistering)} className="p-0 h-auto align-baseline">
+                {isRegistering ? "Inicia Sesión" : "Regístrate"}
+              </Button>
+            </p>
+            {!isRegistering && (
+              <Button variant="link" className="p-0 h-auto text-xs text-gray-500 hover:text-gray-700">
+                ¿Olvidaste tu contraseña?
+              </Button>
+            )}
+          </div>
+
+        </CardContent>
+      </Card>
     </div>
   );
 };

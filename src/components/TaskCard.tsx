@@ -10,7 +10,7 @@ export type TaskCardProps = {
   materia?: string;
   fechaEntrega?: string;
   tiempoEstimado?: number;
-  prioridad?: "alta" | "media" | "baja";
+  // prioridad?: "alta" | "media" | "baja"; // Eliminado
   completada?: boolean;
   points?: number;
   onComplete?: (id: string) => void;
@@ -25,7 +25,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   materia,
   fechaEntrega,
   tiempoEstimado,
-  prioridad,
+  // prioridad, // Eliminado
   completada = false,
   points,
   onComplete,
@@ -40,12 +40,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setTimeout(() => setJustCompleted(false), 1800);
   };
 
-  const prioridadColor =
-    prioridad === "alta"
-      ? "bg-red-100 text-red-700"
-      : prioridad === "media"
-      ? "bg-yellow-100 text-yellow-700"
-      : "bg-green-100 text-green-700";
+  // Variable 'prioridadColor' eliminada
 
   return (
     <div
@@ -77,11 +72,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               {materia}
             </span>
           )}
-          {prioridad && (
-            <span className={cn("px-2 py-1 rounded-md", prioridadColor)}>
-              {prioridad.toUpperCase()}
-            </span>
-          )}
+          
+          {/* Badge de Prioridad Eliminado */}
+
           {typeof tiempoEstimado === "number" && (
             <span className="text-gray-500">⏱ {tiempoEstimado} min</span>
           )}

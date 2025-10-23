@@ -1,118 +1,113 @@
 // src/App.tsx
-import React, { useState ,useEffect} from "react";
+import React, { useState, useEffect } from "react";
 import { LandingPage } from "./components/LandingPage";
 import { Navigation } from "./components/Navigation";
 import { Dashboard } from "./components/Dashboard";
 import { CalendarView } from "./components/CalendarView";
 import { Toaster } from "./components/ui/sonner";
-import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { AuthProvider, useAuth } from "./auth/AuthContext"; // Asegúrate que la ruta sea correcta
 import { Login } from "./components/Login";
-import { Register } from "./components/Register";
 import { TasksProvider } from "./contexts/TasksContext";
 import { TasksView } from "./components/TasksView";
-import { ParticipantsProvider } from "./contexts/ParticipantsContext";
 import { GamificationView } from "./components/GamificationView";
 import { AnalyticsView } from "./components/AnalyticsView";
 import { ProfileView } from "./components/ProfileView";
-/**
- * Componente interno que maneja la navegación por estado y el flujo
- * publico vs autenticado (frontend-only auth via AuthContext).
- */
-function AppInner() {
-  const [currentPage, setCurrentPage] = useState<string>("landing");
-  const { user, ready } = useAuth(); // <-- ahora usamos `ready`
+import { NotificationsView } from "./components/NotificationsView";
+import { GroupsProvider } from "./contexts/GroupsContext";
 
-  // cuando auth se inicializa y hay usuario, vamos al dashboard si aún estamos en "landing"
+function AppInner() {
+  const { user, ready } = useAuth();
+  const [currentPage, setCurrentPage] = useState<string>(user ? "resumen" : "landing");
+
   useEffect(() => {
-    if (ready && user) {
-      setCurrentPage(prev => (prev === "landing" ? "dashboard" : prev));
+    if (ready && user && currentPage === "landing") {
+      setCurrentPage("resumen");
     }
-  }, [ready, user]);
+    // Si no está listo o no hay usuario, y NO estamos en login/landing, redirigir a landing
+    // (Esto evita quedar "atrapado" en una página protegida si se borra localStorage)
+    if (ready && !user && currentPage !== "login" && currentPage !== "landing") {
+       setCurrentPage("landing");
+    }
+  }, [ready, user, currentPage]);
 
   const handlePageChange = (page: string) => setCurrentPage(page);
-  const handleGetStarted = () => setCurrentPage("register");
+  const handleGetStarted = () => setCurrentPage("login"); // Ahora "Get Started" va a Login
   const handleLogin = () => setCurrentPage("login");
 
-  // valores que antes usabas hardcodeados; si el usuario existe, intenta usarlos
-  const userLevel = user?.level ?? 15;
-  const userPoints = user?.points ?? 2340;
-  const notifications = 3;
+  // --- CORRECCIÓN AQUÍ ---
+  // Usar valores fijos para level y points ya que no están en el User actual
+  const userLevel = 1; // Valor fijo o quitar si Navigation ya no lo usa
+  const userPoints = 0; // Valor fijo o quitar si Navigation ya no lo usa
+  // Usar displayName o username como respaldo para el nombre
+  const userNameForNav = user?.displayName || user?.username || "Usuario";
+  // --- FIN CORRECCIÓN ---
 
-  // Si no hay usuario autenticado, mostrar pantallas de landing / login / register
+  const notifications = 3; // Mantener como ejemplo
+
+  // Vistas públicas (si no hay usuario)
   if (!user) {
     switch (currentPage) {
       case "landing":
         return <LandingPage onGetStarted={handleGetStarted} onLogin={handleLogin} />;
       case "login":
-        return <Login onSuccess={() => setCurrentPage("dashboard")} />;
-      case "register":
-        return <Register onSuccess={() => setCurrentPage("dashboard")} />;
-
+        return <Login onSuccess={() => setCurrentPage("resumen")} />;
       default:
+         // Redirigir a landing si intenta acceder a otra página sin estar logueado
         return <LandingPage onGetStarted={handleGetStarted} onLogin={handleLogin} />;
     }
   }
 
-  // Usuario autenticado: render principal con navegación y páginas internas
+  // Vistas protegidas (si hay usuario)
   return (
-    <div className="min-h-screen">
-      {currentPage !== "landing" && (
-        <Navigation
-          currentPage={currentPage}
-          onPageChange={handlePageChange}
-          userLevel={userLevel}
-          userPoints={userPoints}
-          notifications={notifications}
-          userName={user?.name}
-        />
-      )}
+    <div className="min-h-screen flex flex-col"> {/* Asegurar flex-col para layout */}
+      {/* La navegación siempre se muestra si hay usuario */}
+      <Navigation
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+        userLevel={userLevel}       // <-- Usa valor fijo
+        userPoints={userPoints}     // <-- Usa valor fijo
+        notifications={notifications}
+        userName={userNameForNav} // <-- Usa la variable corregida
+      />
 
-      {(() => {
-        switch (currentPage) {
-          case "dashboard":
-            return <Dashboard onNavigate={handlePageChange} />;
-          case "calendario":
-            return <CalendarView onNavigate={handlePageChange} />;
-          case "tareas":
-           case "tareas":
-      return <TasksView />;
-          case "gamificacion":
-  return <GamificationView />; 
-          case "analytics":
-  return <AnalyticsView />;
+      {/* Contenido principal que cambia */}
+      <main className="flex-grow"> {/* Añadir flex-grow para que ocupe el espacio */}
+        {(() => {
+          switch (currentPage) {
+            case "resumen":
+              return <Dashboard onNavigate={handlePageChange} />;
+            case "calendario":
+              return <CalendarView onNavigate={handlePageChange} />;
+            case "tareas":
+              return <TasksView />;
+            case "grupos":
+              return <GamificationView />;
+            case "rendimiento":
+              return <AnalyticsView />;
+            case "perfil":
+              return <ProfileView />;
+            case "notificaciones":
+              return <NotificationsView />;
+            default:
+              // Si currentPage no coincide con ninguna ruta conocida, ir a resumen
+              return <Dashboard onNavigate={handlePageChange} />;
+          }
+        })()}
+      </main>
 
-          case "perfil":
-  return <ProfileView />;
-          case "configuracion":
-            return (
-              <div className="min-h-screen bg-muted/30 p-6">
-                <div className="max-w-7xl mx-auto">
-                  <h1 className="text-3xl font-bold mb-6">Configuración</h1>
-                  <div className="bg-white rounded-lg p-8 text-center">
-                    <p className="text-muted-foreground">Página de configuración en desarrollo...</p>
-                  </div>
-                </div>
-              </div>
-            );
-          default:
-            return <Dashboard onNavigate={handlePageChange} />;
-        }
-      })()}
-
-      <Toaster />
+      <Toaster position="top-center" richColors/> {/* Posición común para Toaster */}
     </div>
   );
 }
 
-
-/** Exporta App envuelto en AuthProvider */
+// Proveedores globales
 export default function App() {
-  return (
+ return (
     <AuthProvider>
       <TasksProvider>
-        <ParticipantsProvider>
+        <GroupsProvider>
           <AppInner />
-        </ParticipantsProvider>
+        </GroupsProvider>
       </TasksProvider>
     </AuthProvider>
   );

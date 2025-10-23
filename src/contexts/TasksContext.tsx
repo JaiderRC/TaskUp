@@ -1,65 +1,140 @@
 // src/contexts/TasksContext.tsx
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react'; // Added useEffect
+import { toast } from "sonner"; // Added toast for potential errors
 
-export type Task = {
+// Interface for Task
+export interface Task {
   id: string;
   title: string;
   description?: string;
   materia?: string;
-  fechaEntrega?: string;
-  tiempoEstimado?: number;
-  prioridad?: "alta" | "media" | "baja";
-  completada?: boolean;
-  points?: number;
-};
+  fechaEntrega?: string; // YYYY-MM-DD
+  completada: boolean;
+  points: number;
+  groupId?: string;
+}
 
-type TasksContextType = {
+// Interface for Context
+interface TasksContextType {
   tasks: Task[];
-  addTask: (task: Task) => void;
-  toggleComplete: (id: string) => void;
+  addTask: (taskData: Omit<Task, 'id' | 'completada' | 'points'> & Partial<Pick<Task, 'completada' | 'points'>>) => void;
   deleteTask: (id: string) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void; // 👈 nuevo
-};
+  toggleComplete: (id: string) => void;
+  updateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
+}
 
-const STORAGE_KEY = "taskup_tasks_v1";
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
-export const TasksProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
+// --- KEY FOR LOCAL STORAGE ---
+const LOCAL_STORAGE_KEY = 'taskup_tasks_v1'; // Use a consistent key
 
+// Initial mock data (only used if localStorage is empty or fails)
+const initialMockTasks: Task[] = [
+  { id: "t1_mock", title: "Tarea suelta de ejemplo", description: "Esta es una tarea sin materia", fechaEntrega: "2025-10-25", completada: false, points: 50 },
+  { id: "t2_mock", title: "Entregar ensayo de Cálculo", description: "Mínimo 5 páginas", materia: "Cálculo", fechaEntrega: "2025-10-28", completada: false, points: 100 },
+];
+
+export const TasksProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+
+  // --- REVISED LOADING LOGIC ---
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    console.log(`Intentando cargar tareas desde localStorage con la clave: ${LOCAL_STORAGE_KEY}`);
+    try {
+      const storedTasks = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (storedTasks && storedTasks !== "[]") {
+        console.log("Datos encontrados en localStorage:", storedTasks);
+        const parsedTasks = JSON.parse(storedTasks);
+        if (Array.isArray(parsedTasks)) {
+          console.log("Tareas cargadas exitosamente desde localStorage:", parsedTasks);
+          return parsedTasks; // Load saved tasks
+        } else {
+          console.warn("Los datos de tareas guardados no son un array. Usando datos iniciales.");
+          localStorage.removeItem(LOCAL_STORAGE_KEY); // Clean up corrupted data
+          return initialMockTasks;
+        }
+      } else {
+         console.log("No se encontraron tareas guardadas o estaban vacías. Usando datos iniciales.");
+         return initialMockTasks; // Use initial mocks if nothing is saved
+      }
+    } catch (error) {
+      console.error("Error al parsear tareas desde localStorage:", error);
+      toast.error("Error al cargar tareas guardadas.");
+      localStorage.removeItem(LOCAL_STORAGE_KEY); // Clean up potentially corrupted data
+      return initialMockTasks; // Fallback to initial mocks
+    }
+  });
+  // --- END LOADING LOGIC ---
+
+
+  // --- USE EFFECT FOR SAVING ---
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setTasks(JSON.parse(saved));
-  }, []);
+    try {
+      console.log("Guardando tareas en localStorage:", tasks);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tasks));
+    } catch (error) {
+      console.error("Error guardando tareas en localStorage:", error);
+      toast.error("Error al guardar las tareas.");
+    }
+  }, [tasks]); // This runs every time the 'tasks' state changes
+  // --- END SAVING LOGIC ---
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  }, [tasks]);
 
-  const addTask = (task: Task) => setTasks((prev) => [...prev, task]);
+  // addTask function (explicit properties)
+  const addTask = (taskData: Omit<Task, 'id' | 'completada' | 'points'> & Partial<Pick<Task, 'completada' | 'points'>>) => {
+    const newTask: Task = {
+      id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      title: taskData.title,
+      description: taskData.description,
+      materia: taskData.materia,
+      fechaEntrega: taskData.fechaEntrega,
+      groupId: taskData.groupId,
+      completada: taskData.completada ?? false,
+      points: taskData.points ?? 50,
+    };
+    // This state update will trigger the useEffect above to save
+    setTasks(prevTasks => [...prevTasks, newTask]);
+    console.log("Nueva tarea añadida (estado actualizado):", newTask);
+  };
 
-  const toggleComplete = (id: string) =>
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completada: !t.completada } : t))
+  // deleteTask function
+  const deleteTask = (id: string) => {
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+    // State update triggers save
+  };
+
+  // toggleComplete function
+  const toggleComplete = (id: string) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === id ? { ...task, completada: !task.completada } : task
+      )
     );
+    // State update triggers save
+  };
 
-  const deleteTask = (id: string) =>
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-
-  const updateTask = (id: string, updates: Partial<Task>) =>
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+  // updateTask function
+  const updateTask = (id: string, updates: Partial<Omit<Task, 'id'>>) => {
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === id ? { ...task, ...updates } : task
+      )
     );
+    // State update triggers save
+  };
+
+  const value = { tasks, addTask, deleteTask, toggleComplete, updateTask };
 
   return (
-    <TasksContext.Provider value={{ tasks, addTask, toggleComplete, deleteTask, updateTask }}>
+    <TasksContext.Provider value={value}>
       {children}
     </TasksContext.Provider>
   );
 };
 
 export const useTasks = () => {
-  const ctx = useContext(TasksContext);
-  if (!ctx) throw new Error("useTasks debe usarse dentro de <TasksProvider>");
-  return ctx;
+  const context = useContext(TasksContext);
+  if (context === undefined) {
+    throw new Error('useTasks must be used within a TasksProvider');
+  }
+  return context;
 };
